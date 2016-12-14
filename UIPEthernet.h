@@ -24,6 +24,7 @@
 //#define UIPETHERNET_DEBUG_CHKSUM
 //#define UIPETHERNET_DEBUG_UDP
 //#define UIPETHERNET_DEBUG_CLIENT
+//#define UIPETHERNET_DEBUG_SERVER
 
 #include "ethernet_comp.h"
 #include <Arduino.h>
@@ -101,8 +102,10 @@ private:
   static boolean network_send();
 
   friend class UIPServer;
+  friend class UIPServerExt;
 
   friend class UIPClient;
+  friend class UIPClientExt;
 
   friend class UIPUDP;
 
