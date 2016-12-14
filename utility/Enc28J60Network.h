@@ -27,13 +27,16 @@
 
 #include "mempool.h"
 
-#define ENC28J60_CONTROL_CS     SS
+#define ENC28J60_CONTROL_CS     ENC28J60_CS
 #define SPI_MOSI        MOSI
 #define SPI_MISO        MISO
 #define SPI_SCK         SCK
 #define SPI_SS          SS
 
 #define UIP_RECEIVEBUFFERHANDLE 0xff
+
+#define UIP_SENDBUFFER_PADDING 7
+#define UIP_SENDBUFFER_OFFSET 1
 
 //#define ENC28J60DEBUG
 
@@ -70,17 +73,17 @@ private:
   friend void enc28J60_mempool_block_move_callback(memaddress,memaddress,memaddress);
 
 public:
-
+  static void status();
   uint8_t getrev(void);
   void powerOn();
   void powerOff();
   bool linkStatus();
 
-  static void init(uint8_t* macaddr);
+  static void init(uint8_t* macaddr, int cs_pin);
   static memhandle receivePacket();
   static void freePacket();
   static memaddress blockSize(memhandle handle);
-  static void sendPacket(memhandle handle);
+  static bool sendPacket(memhandle handle);
   static uint16_t readPacket(memhandle handle, memaddress position, uint8_t* buffer, uint16_t len);
   static uint16_t writePacket(memhandle handle, memaddress position, uint8_t* buffer, uint16_t len);
   static void copyPacket(memhandle dest, memaddress dest_pos, memhandle src, memaddress src_pos, uint16_t len);

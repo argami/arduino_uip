@@ -43,7 +43,6 @@ extern "C"
 
 #define UIPETHERNET_FREEPACKET 1
 #define UIPETHERNET_SENDPACKET 2
-#define UIPETHERNET_BUFFERREAD 4
 
 #define uip_ip_addr(addr, ip) do { \
                      ((u16_t *)(addr))[0] = HTONS(((ip[0]) << 8) | (ip[1])); \
@@ -66,11 +65,11 @@ class UIPEthernetClass
 public:
   UIPEthernetClass();
 
-  int begin(const uint8_t* mac);
-  void begin(const uint8_t* mac, IPAddress ip);
-  void begin(const uint8_t* mac, IPAddress ip, IPAddress dns);
-  void begin(const uint8_t* mac, IPAddress ip, IPAddress dns, IPAddress gateway);
-  void begin(const uint8_t* mac, IPAddress ip, IPAddress dns, IPAddress gateway, IPAddress subnet);
+  int begin(const uint8_t* mac, int cs_pin=SS);
+  void begin(const uint8_t* mac, IPAddress ip, int cs_pin=SS);
+  void begin(const uint8_t* mac, IPAddress ip, IPAddress dns, int cs_pin=SS);
+  void begin(const uint8_t* mac, IPAddress ip, IPAddress dns, IPAddress gateway, int cs_pin=SS);
+  void begin(const uint8_t* mac, IPAddress ip, IPAddress dns, IPAddress gateway, IPAddress subnet, int cs_pin=SS);
 
   // maintain() must be called at regular intervals to process the incoming serial
   // data and issue IP events to the sketch.  It does not return until all IP
@@ -81,6 +80,8 @@ public:
   IPAddress subnetMask();
   IPAddress gatewayIP();
   IPAddress dnsServerIP();
+  
+  void update();
 
 private:
   static memhandle in_packet;
@@ -93,7 +94,7 @@ private:
 
   static unsigned long periodic_timer;
 
-  static void init(const uint8_t* mac);
+  static void init(const uint8_t* mac, int cs_pin);
   static void configure(IPAddress ip, IPAddress dns, IPAddress gateway, IPAddress subnet);
 
   static void tick();

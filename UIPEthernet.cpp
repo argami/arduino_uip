@@ -54,15 +54,21 @@ UIPEthernetClass::UIPEthernetClass()
 {
 }
 
+void
+UIPEthernetClass::update()
+{
+  Ethernet.tick();
+}
+
 #if UIP_UDP
 int
-UIPEthernetClass::begin(const uint8_t* mac)
+UIPEthernetClass::begin(const uint8_t* mac, int cs_pin)
 {
   static DhcpClass s_dhcp;
   _dhcp = &s_dhcp;
 
   // Initialise the basic info
-  init(mac);
+  init(mac, cs_pin);
 
   // Now try to get our config info from a DHCP server
   int ret = _dhcp->beginWithDHCP((uint8_t*)mac);
@@ -77,32 +83,32 @@ UIPEthernetClass::begin(const uint8_t* mac)
 #endif
 
 void
-UIPEthernetClass::begin(const uint8_t* mac, IPAddress ip)
+UIPEthernetClass::begin(const uint8_t* mac, IPAddress ip, int cs_pin)
 {
   IPAddress dns = ip;
   dns[3] = 1;
-  begin(mac, ip, dns);
+  begin(mac, ip, dns, cs_pin);
 }
 
 void
-UIPEthernetClass::begin(const uint8_t* mac, IPAddress ip, IPAddress dns)
+UIPEthernetClass::begin(const uint8_t* mac, IPAddress ip, IPAddress dns, int cs_pin)
 {
   IPAddress gateway = ip;
   gateway[3] = 1;
-  begin(mac, ip, dns, gateway);
+  begin(mac, ip, dns, gateway, cs_pin);
 }
 
 void
-UIPEthernetClass::begin(const uint8_t* mac, IPAddress ip, IPAddress dns, IPAddress gateway)
+UIPEthernetClass::begin(const uint8_t* mac, IPAddress ip, IPAddress dns, IPAddress gateway, int cs_pin)
 {
   IPAddress subnet(255, 255, 255, 0);
-  begin(mac, ip, dns, gateway, subnet);
+  begin(mac, ip, dns, gateway, subnet, cs_pin);
 }
 
 void
-UIPEthernetClass::begin(const uint8_t* mac, IPAddress ip, IPAddress dns, IPAddress gateway, IPAddress subnet)
+UIPEthernetClass::begin(const uint8_t* mac, IPAddress ip, IPAddress dns, IPAddress gateway, IPAddress subnet, int cs_pin)
 {
-  init(mac);
+  init(mac, cs_pin);
   configure(ip,dns,gateway,subnet);
 }
 
@@ -290,34 +296,41 @@ boolean UIPEthernetClass::network_send()
       Serial.print(F(", hdrlen: "));
       Serial.println(uip_hdrlen);
 #endif
-      Enc28J60Network::writePacket(uip_packet,0,uip_buf,uip_hdrlen);
+      Enc28J60Network::writePacket(uip_packet,UIP_SENDBUFFER_OFFSET,uip_buf,uip_hdrlen);
       packetstate &= ~ UIPETHERNET_SENDPACKET;
-      goto sendandfree;
+      if (Enc28J60Network::sendPacket(uip_packet))
+        {
+          Enc28J60Network::freeBlock(uip_packet);
+          uip_packet = NOBLOCK;
+          return true;
+        }
+      return false;
     }
-  uip_packet = Enc28J60Network::allocBlock(uip_len);
+  uip_packet = Enc28J60Network::allocBlock(uip_len + UIP_SENDBUFFER_OFFSET + UIP_SENDBUFFER_PADDING);
+  //Serial.print("Alloc User TX");
   if (uip_packet != NOBLOCK)
-    {
+    { //Serial.println(" OK");
 #ifdef UIPETHERNET_DEBUG
       Serial.print(F("Enc28J60Network_send uip_buf (uip_len): "));
       Serial.print(uip_len);
       Serial.print(F(", packet: "));
       Serial.println(uip_packet);
 #endif
-      Enc28J60Network::writePacket(uip_packet,0,uip_buf,uip_len);
-      goto sendandfree;
+      Enc28J60Network::writePacket(uip_packet,UIP_SENDBUFFER_OFFSET,uip_buf,uip_len);
+      bool register success = Enc28J60Network::sendPacket(uip_packet);
+      //Serial.print("Free System Packet ");
+      Enc28J60Network::freeBlock(uip_packet);
+      
+      uip_packet = NOBLOCK;
+      return success;
     }
   return false;
-sendandfree:
-  Enc28J60Network::sendPacket(uip_packet);
-  Enc28J60Network::freeBlock(uip_packet);
-  uip_packet = NOBLOCK;
-  return true;
 }
 
-void UIPEthernetClass::init(const uint8_t* mac) {
+void UIPEthernetClass::init(const uint8_t* mac, int cs_pin) {
   periodic_timer = millis() + UIP_PERIODIC_TIMER;
 
-  Enc28J60Network::init((uint8_t*)mac);
+  Enc28J60Network::init((uint8_t*)mac, cs_pin);
   uip_seteth_addr(mac);
 
   uip_init();
@@ -445,7 +458,7 @@ uip_tcpchksum(void)
       sum = Enc28J60Network::chksum(
           sum,
           UIPEthernetClass::uip_packet,
-          UIP_IPH_LEN + UIP_LLH_LEN + upper_layer_memlen,
+          (UIPEthernetClass::packetstate & UIPETHERNET_SENDPACKET ? UIP_IPH_LEN + UIP_LLH_LEN + UIP_SENDBUFFER_OFFSET : UIP_IPH_LEN + UIP_LLH_LEN) + upper_layer_memlen,
           upper_layer_len - upper_layer_memlen
       );
 #ifdef UIPETHERNET_DEBUG_CHKSUM
